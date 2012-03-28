@@ -1,0 +1,24 @@
+This is OpenGL application solves puzzle with figures and box.
+The goal is to put 8 figures into the 2x3x4 box.
+
+Requirements:
+* QT4 development libraries
+* GLUT development libraries
+* qmake
+
+Compilation:
+qmake && make
+
+Run:
+./glboxsolver
+
+Mouse:
+Left drag - rotate figure
+Right drag - move figures from center
+Middle drag, mouse wheel - zoom
+
+Keys:
+A - switch between translucent and regular mode
+S - show status
+Left, Right - iterate between solutions
+Esc - exit
