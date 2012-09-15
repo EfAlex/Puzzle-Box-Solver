@@ -43,4 +43,4 @@ SOURCES += box.cpp \
            main.cpp
 QT           += opengl
 PRECOMPILED_HEADER = common.hpp
-LIBS += -lglut
+LIBS += -lglut -lGLU
