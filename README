@@ -2,6 +2,7 @@ This is OpenGL application solves puzzle with figures and box.
 The goal is to put 8 figures into the 2x3x4 box.
 
 Requirements:
+* Boost library
 * QT4 development libraries
 * GLUT development libraries
 * qmake
