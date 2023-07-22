@@ -7,7 +7,7 @@ CONFIG += warn_on
 CONFIG += release
 
 TEMPLATE = app
-TARGET = 
+TARGET = glboxsolver
 DEPENDPATH += .
 INCLUDEPATH += .
 
@@ -41,6 +41,6 @@ SOURCES += box.cpp \
            glsolution.cpp \
            glwidget.cpp \
            main.cpp
-QT           += opengl
+QT           += widgets opengl
 PRECOMPILED_HEADER = common.hpp
 LIBS += -lglut -lGLU

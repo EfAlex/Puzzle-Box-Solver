@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 //#include "box_solver.hpp"
-#include <QtGui/QApplication>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QMessageBox>
 #include "glwidget.hpp"
 #include "box_solver.hpp"
 #include <GL/glut.h>
