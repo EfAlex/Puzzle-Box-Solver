@@ -16,22 +16,27 @@ limitations under the License.
 
 
 #include "common.hpp"
-#include <QtOpenGL>
+#include <QOpenGLFunctions>
+#include <QOpenGLWidget>
+#include <QMouseEvent>
+#include <QWheelEvent>
+#include <QCloseEvent>
+#include <QKeyEvent>
+#include <QPoint>
+#include <QOpenGLDebugLogger>
 #include "glsolution.hpp"
 #include "box_solver.hpp"
+#include "coregl.hpp"
 
-class GLWidget : public QGLWidget
+class GLWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
     Q_OBJECT
 
 public:
     GLWidget(QWidget *parent);
 
-    //void paintEvent(QPaintEvent *);
     void mousePressEvent(QMouseEvent *);
-    //void mouseDoubleClickEvent(QMouseEvent *);
     void mouseMoveEvent(QMouseEvent *);
-    //void timerEvent(QTimerEvent *);
     void wheelEvent(QWheelEvent *);
     void closeEvent ( QCloseEvent * event );
 
@@ -47,6 +52,7 @@ public slots:
     void draw();
 private slots:
     void updateBox();
+    void onMessageLogged(const QOpenGLDebugMessage &message);
 protected:
     void initializeGL();
     void paintGL();
@@ -68,10 +74,22 @@ private:
     bool leftButton, middleButton, rightButton, zoomIn, zoomOut;
     GLfloat light0Position[4];
 
-// variables to compute frames per second
     int frame;
-    QTime time;
+    QElapsedTimer time;
     char fps_str[100];
+
+    CoreGL *coregl_;                    // shader + VAO manager (Phase A)
+    QMatrix4x4 viewMatrix_;             // View matrix for 3D rendering
+    QOpenGLDebugLogger* m_debugLogger;  // OpenGL debug logger
+    bool debugMode_;                    // Debug mode flag
+
+    /* Neon mode (from Tetris3D) */
+    bool m_neonMode = true;             // true = neon glow, false = solid lit
+    float m_neonIntensity = 0.2f;       // glow brightness (from Tetris3D)
+    float m_lightPosition[3] = {0.5f, 1.0f, 0.3f};  // configurable light direction
+
+    /* Instance data ready flag — set in updateBox() on solver thread, checked in draw() */
+    bool m_dataReady = false;
 
     void restorePerspectiveProjection();
     void setOrthographicProjection();
@@ -81,5 +99,8 @@ private:
         float z,
         void *font,
         char *string);
+    void setupProjectionMatrix();       // Projection matrix setup function
+public:
+    void setDebugMode(bool debug) { debugMode_ = debug; }
 };
 

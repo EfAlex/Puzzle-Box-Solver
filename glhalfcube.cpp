@@ -16,199 +16,81 @@
 
 
 #include "glhalfcube.hpp"
-#include "GL/glut.h"
+#include <boost/foreach.hpp>
 #include <boost/numeric/ublas/io.hpp>
 #include <iostream>
 #include "glwidget.hpp"
+#include "coregl.hpp"
+#include <QMatrix4x4>
 
 glhalfcube::glhalfcube():globject() {
-    solid[0]=
-        solid[1]=
-        solid[2]=
-        solid[3]=0.5;
-
-    wired[0]=
-        wired[1]=
-        wired[2]=1.0;
-    wired[3]=0.5;
+    solid[0] = 0.5;
+    solid[1] = 0.5;
+    solid[2] = 0.5;
 
     direction.resize(2);
     direction[0].resize(3);
     direction[1].resize(3);
 
-    direction[0][0]=
-        direction[0][1]=
-        direction[0][2]=
-        direction[1][0]=
-        direction[1][1]=
-        direction[1][2]=0;
+    direction[0][0] = 0;
+    direction[0][1] = 0;
+    direction[0][2] = 0;
+    direction[1][0] = 0;
+    direction[1][1] = 0;
+    direction[1][2] = 0;
 }
 
 void glhalfcube::draw()
 {
-    //std::cout << "glhalfcube draw" << std::endl;
-    glPushMatrix();
+    updateLocalMatrix();
+    QMatrix4x4 combinedMatrix = computeCombinedMatrix();
 
-    glTranslatef(pos[0],pos[1],pos[2]);
+    QVector3D position(combinedMatrix(0, 3), combinedMatrix(1, 3), combinedMatrix(2, 3));
+    float positionArray[3] = {position.x(), position.y(), position.z()};
 
-    GLfloat m[16] = {
-        1,0,0,0,
-        0,1,0,0,
-        0,0,1,0,
-        0,0,0,1
-    };
-    //std::cout << "draw direction[0]: " << direction[0] << " direction[1]: " << direction[1] << std::endl;
-    m[0] = 1.0 * direction[0][0];
-    m[1] = 1.0 * direction[0][1];
-    m[2] = 1.0 * direction[0][2];
+    float rotation[9];
+    if (!direction.empty() && direction.size() >= 2) {
+        QVector3D dir0(direction[0][0], direction[0][1], direction[0][2]);
+        QVector3D dir1(direction[1][0], direction[1][1], direction[1][2]);
 
-    m[4] = 1.0 * direction[1][0];
-    m[5] = 1.0 * direction[1][1];
-    m[6] = 1.0 * direction[1][2];
+        if (dir0.length() > 0.0f && dir1.length() > 0.0f) {
+            QVector3D dir2 = QVector3D::crossProduct(dir1, dir0);
 
-    /*std::cout << "matrix: " << m[0] << " " << m[4] << " " << m[8] << " " << m[12] << std::endl;
-    std::cout << "        " << m[1] << " " << m[5] << " " << m[9] << " " << m[13] << std::endl;
-    std::cout << "        " << m[2] << " " << m[6] << " " << m[10] << " " << m[14] << std::endl;
-    std::cout << "        " << m[3] << " " << m[7] << " " << m[11] << " " << m[15] << std::endl;*/
+            if (dir2.length() > 0.0f) {
+                dir0.normalize();
+                dir1.normalize();
+                dir2.normalize();
 
-    GLfloat *x1 = &m[0];
-    GLfloat *y1 = &m[1];
-    GLfloat *z1 = &m[2];
-    GLfloat *x2 = &m[4];
-    GLfloat *y2 = &m[5];
-    GLfloat *z2 = &m[6];
-    GLfloat *x3 = &m[8];
-    GLfloat *y3 = &m[9];
-    GLfloat *z3 = &m[10];
-    *x3 = *y1 * *z2 - *z1 * *y2;
-    *y3 = *z1 * *x2 - *x1 * *z2;
-    *z3 = *x1 * *y2 - *y1 * *x2;
-
-    /*std::cout << "matrix: " << m[0] << " " << m[4] << " " << m[8] << " " << m[12] << std::endl;
-    std::cout << "        " << m[1] << " " << m[5] << " " << m[9] << " " << m[13] << std::endl;
-    std::cout << "        " << m[2] << " " << m[6] << " " << m[10] << " " << m[14] << std::endl;
-    std::cout << "        " << m[3] << " " << m[7] << " " << m[11] << " " << m[15] << std::endl;*/
-
-    glMultMatrixf(m);
-
-    GLboolean lighting;
-
-    glGetBooleanv(GL_LIGHTING, &lighting);
-
-    if (lighting)
-        glDisable(GL_LIGHTING);
-
-    if (GLWidget::useAlpha) {
-        glColor4f(wired[0], wired[1], wired[2], wired[3]);
+                rotation[0] = dir0.x(); rotation[1] = dir0.y(); rotation[2] = dir0.z();
+                rotation[3] = dir1.x(); rotation[4] = dir1.y(); rotation[5] = dir1.z();
+                rotation[6] = dir2.x(); rotation[7] = dir2.y(); rotation[8] = dir2.z();
+            } else {
+                rotation[0]=1; rotation[1]=0; rotation[2]=0;
+                rotation[3]=0; rotation[4]=1; rotation[5]=0;
+                rotation[6]=0; rotation[7]=0; rotation[8]=1;
+            }
+        } else {
+            rotation[0]=1; rotation[1]=0; rotation[2]=0;
+            rotation[3]=0; rotation[4]=1; rotation[5]=0;
+            rotation[6]=0; rotation[7]=0; rotation[8]=1;
+        }
     } else {
-        glColor3f(wired[0], wired[1], wired[2]);
+        rotation[0]=1; rotation[1]=0; rotation[2]=0;
+        rotation[3]=0; rotation[4]=1; rotation[5]=0;
+        rotation[6]=0; rotation[7]=0; rotation[8]=1;
     }
-    wiredHalfCube();
 
-    if (lighting)
-        glEnable(GL_LIGHTING);
-
-    if (GLWidget::useAlpha) {
-        glColor4f(solid[0], solid[1], solid[2], solid[3]);
-    } else {
-        glColor3f(solid[0], solid[1], solid[2]);
+    if (coregl_ != nullptr) {
+        coregl_->collectInstanceDataFromObjects(positionArray, solid, rotation, 1, false);
     }
-    solidHalfCube();
-    glPopMatrix();
 
-    /*glColor4f(wired[0], wired[1], wired[2], wired[3]);
-    glPushMatrix();
-
-    glTranslatef(pos[0],pos[1],pos[2]);
-    glBegin(GL_LINES);
-
-    glVertex3f(0, 0, 0);
-    glVertex3f(0.5 * (direction[0][0]), 0.5 * (direction[0][1]), 0.5 * (direction[0][2]));
-    glVertex3f(0, 0, 0);
-    glVertex3f(0.5 * (direction[1][0]), 0.5 * (direction[1][1]), 0.5 * (direction[1][2]));
-
-    glEnd();
-    glPopMatrix();*/
+    BOOST_FOREACH( globject &o, objects) {
+        o.draw();
+    }
 }
 
-void glhalfcube::solidHalfCube()
-{
-    glBegin(GL_QUADS);
-
-    glNormal3f(0,-1,0);
-    glVertex3f(0.5, -0.5, -0.5);
-    glVertex3f(0.5, -0.5, 0.5);
-    glVertex3f(-0.5, -0.5, 0.5);
-    glVertex3f(-0.5, -0.5, -0.5);
-
-    glNormal3f(-1,0,0);
-    glVertex3f(-0.5, -0.5, -0.5);
-    glVertex3f(-0.5, -0.5, 0.5);
-    glVertex3f(-0.5, 0.5, 0.5);
-    glVertex3f(-0.5, 0.5, -0.5);
-
-    glNormal3f(0.707106781187f,0.707106781187f,0);
-    glVertex3f(0.5, -0.5, 0.5);
-    glVertex3f(0.5, -0.5, -0.5);
-    glVertex3f(-0.5, 0.5, -0.5);
-    glVertex3f(-0.5, 0.5, 0.5);
-
-    glEnd();
-
-    glBegin(GL_TRIANGLES);
-
-    glNormal3f(0,0,-1);
-    glVertex3f(-0.5, 0.5, -0.5);
-    glVertex3f(0.5, -0.5, -0.5);
-    glVertex3f(-0.5, -0.5, -0.5);
-
-    glNormal3f(0,0,1);
-    glVertex3f(-0.5, -0.5, 0.5);
-    glVertex3f(0.5, -0.5, 0.5);
-    glVertex3f(-0.5, 0.5, 0.5);
-
-    glEnd();
-}
-
-void glhalfcube::wiredHalfCube()
-{
-    GLboolean lighting;
-
-    glGetBooleanv(GL_LIGHTING, &lighting);
-
-    if (lighting)
-        glDisable(GL_LIGHTING);
-
-    glBegin(GL_LINES);
-
-    glVertex3f(-0.5, -0.5, -0.5);
-    glVertex3f(-0.5, -0.5, 0.5);
-    glVertex3f(-0.5, -0.5, 0.5);
-    glVertex3f(0.5, -0.5, 0.5);
-    glVertex3f(0.5, -0.5, 0.5);
-    glVertex3f(0.5, -0.5, -0.5);
-    glVertex3f(0.5, -0.5, -0.5);
-    glVertex3f(-0.5, -0.5, -0.5);
-
-    glVertex3f(-0.5, -0.5, 0.5);
-    glVertex3f(-0.5, 0.5, 0.5);
-    glVertex3f(-0.5, 0.5, 0.5);
-    glVertex3f(-0.5, 0.5, -0.5);
-    glVertex3f(-0.5, 0.5, -0.5);
-    glVertex3f(-0.5, -0.5, -0.5);
-
-    glVertex3f(0.5, -0.5, -0.5);
-    glVertex3f(-0.5, 0.5, -0.5);
-    glVertex3f(0.5, -0.5, 0.5);
-    glVertex3f(-0.5, 0.5, 0.5);
-
-    glEnd();
-    if (lighting)
-        glEnable(GL_LIGHTING);
-}
 
 glhalfcube * glhalfcube::do_clone()
 {
     return new glhalfcube(*this);
 }
-

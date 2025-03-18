@@ -18,8 +18,8 @@ limitations under the License.
 #include "box_solver.hpp"
 #include <algorithm>
 #include <boost/numeric/ublas/io.hpp>
-#include <boost/foreach.hpp>
 #include <limits.h>
+#include <boost/foreach.hpp>
 #include "box.hpp"
 #include "figure.hpp"
 #include "box_solution.hpp"
@@ -49,42 +49,15 @@ void box_solver::init()
         depth[d] = 0;
     }
 }
-box_solver::box_solver():check_count(1000000),stopComputingFlag(false),updateStatusFlag(false)
+box_solver::box_solver():check_count(10000/*00*/),stopComputingFlag(false),updateStatusFlag(false)
 {
     init();
 }
 
 void box_solver::run()
 {
-#if 1
     initFigures();
     solve();
-#else
-    initSolution();
-    std::cout << box_solution::isUnique(solution, solution_pos) << std::endl;
-    GLWidget::gl_count = figures.size();
-    GLWidget::gl_solution = solution;
-    GLWidget::gl_solution_pos = solution_pos;
-    emit drawBox();
-    sleep(2);
-    box_solution::addSolution(solution, solution_pos);
-    std::cout << box_solution::isUnique(solution, solution_pos) << std::endl;
-    std::cout << box_solution(solution, solution_pos);
-    std::cout << "Depth: " << depth << std::endl;
-    std::cout << std::endl;
-    sleep(1);
-    box_solution::addSolution(solution, solution_pos);
-    sleep(1);
-    box_solution::addSolution(solution, solution_pos);
-    sleep(1);
-    box_solution::addSolution(solution, solution_pos);
-    sleep(1);
-    box_solution::addSolution(solution, solution_pos);
-    sleep(1);
-    box_solution::addSolution(solution, solution_pos);
-    sleep(1);
-    box_solution::addSolution(solution, solution_pos);
-#endif
 }
 
 int box_solver::iterateFigure(unsigned int i)
@@ -100,13 +73,7 @@ int box_solver::iterateFigure(unsigned int i)
             GLWidget::gl_solution = solution;
             GLWidget::gl_solution_pos = solution_pos;
             GLWidget::gl_pos = box_solution::solution_list.size() - 1;
-            std::cout << "Solution found!" << std::endl << " After " << count << " iterations" << std::endl;
-            std::cout << "Solution: " << GLWidget::gl_pos << std::endl;
-            std::cout << box_solution(solution, solution_pos);
-            std::cout << "Depth: " << depth << std::endl;
-            std::cout << std::endl;
             emit drawBox();
-            usleep(100000);
             //stopComputingFlag = true;
         }
         return 0;
@@ -128,10 +95,6 @@ int box_solver::iterateFigure(unsigned int i)
                     min_v[2] = std::min(min_v[2], c.pos[2]);
                     max_v[2] = std::max(max_v[2], c.pos[2]);
                 }
-                //                std::cout << "min: " << min_v << " max: " << max_v << std::endl;
-                //                std::cout << " x : "<< -min_v[0] << " <-> " << 4 - max_v[0] << std::endl;
-                //                std::cout << " y : "<< -min_v[1] << " <-> " << 3 - max_v[1] << std::endl;
-                //                std::cout << " z : "<< -min_v[2] << " <-> " << 2 - max_v[2] << std::endl;
                 if (max_v[0] - min_v[0] > 4 || max_v[1] - min_v[1] > 3 || max_v[2] - min_v[2] > 2) {
                     continue;
                 }
@@ -143,45 +106,17 @@ int box_solver::iterateFigure(unsigned int i)
                         v[1] = y;
                         for (int z = -min_v[2]; z < /*-min_v[2] + 1 */2 - max_v[2]; ++z) {
                             v[2] = z;
-                            //b.dump();
-#if 0
-                            box *tmp_box = NULL;
-                            if (i > 0 && i < 3) {
-                                tmp_box = new box;
-                                *tmp_box = b;
-                            }
-#endif
                             if (b.addFigure(*f, v)) {
-                                //b.dump();
                                 ++count;
                                 ++depth[i];
                                 solution[i] = *f;
                                 solution_pos[i] = v;
-#if 0
-                                if (b.getVolume() != (i+1) * 6) {
-                                    std::cerr << "Volume check error!!!" << std::endl;
-                                    std::cerr << "Iteration: " << count << std::endl;
-                                    for (int s = 0; s < i; ++s) {
-                                        std::cout << "Item: " << s << " Position: " <<  solution_pos[s] << " Direction[0]: " << solution[s].direction[0] << " Direction[1]: " << solution[s].direction[1] << std::endl;
-                                    }
-                                    std::cerr << "Depth: " << depth << std::endl;
-                                    std::cerr << std::endl;
-                                }
-#endif
-                                if (count % check_count == 0 || updateStatusFlag /*|| i >= 6*/) {
+                                if (count % check_count == 0 || updateStatusFlag) {
                                     updateStatusFlag = false;
-                                    std::cout << "Iteration: " << count << std::endl;
-                                    for (unsigned int s = 0; s <= i; ++s) {
-                                        std::cout << "Item: " << s << " Position: " <<  solution_pos[s] << " Direction[0]: " << solution[s].direction[0] << " Direction[1]: " << solution[s].direction[1] << std::endl;
-                                    }
-                                    std::cout << "Depth: " << depth << std::endl;
-                                    std::cout << std::endl;
                                     GLWidget::gl_count = i + 1;
                                     GLWidget::gl_solution = solution;
                                     GLWidget::gl_solution_pos = solution_pos;
                                     emit drawBox();
-                                    //usleep(10000);
-                                    //stopComputingFlag = true;
                                 }
                                 // do recursive call
                                 iterateFigure(i + 1);
@@ -192,27 +127,6 @@ int box_solver::iterateFigure(unsigned int i)
                                     std::cerr << "Delete error!" << std:: endl;
                                     exit(1);
                                 }
-                                //b.dump();
-#if 0
-                                if (tmp_box) {
-                                    if (*tmp_box != b) {
-                                        std::cerr << "Figure add/delete logic error!" << std:: endl;
-                                        delete tmp_box;
-                                        tmp_box = NULL;
-                                        exit(1);
-                                    }
-                                    delete tmp_box;
-                                    tmp_box = NULL;
-                                }
-#endif
-#if 0
-                                if (i == 0) {
-                                    if (!b.isEmpty()) {
-                                        std::cerr << "Figure add/delete logic error!" << std:: endl;
-                                        exit(1);
-                                    }
-                                }
-#endif
                             }
                         }
                     }
@@ -228,10 +142,8 @@ int box_solver::iterateFigure(unsigned int i)
 
 int box_solver::solve()
 {
-    int res=iterateFigure(0);
-    std::cout << "Total iterations: " << count << std::endl;
-    std::cout << "Depth: " << depth << std::endl;
-    //emit drawBox();
+    int res = iterateFigure(0);
+    emit drawBox();
     return res;
 }
 

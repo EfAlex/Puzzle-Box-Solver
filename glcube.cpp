@@ -14,54 +14,34 @@
     limitations under the License.
 */
 
-
 #include "glcube.hpp"
-#include "GL/glut.h"
-#include <iostream>
+#include "globject.hpp"
+#include <QMatrix4x4>
+#include "coregl.hpp"
 #include "glwidget.hpp"
+#include <boost/foreach.hpp>
 
-glcube::glcube():globject() {
-    solid[0]=
-        solid[1]=
-            solid[2]=
-                solid[3]=0.5;
-
-    wired[0]=
-        wired[1]=
-            wired[2]=1.0;
-    wired[3]=0.5;
+glcube::glcube():globject()
+{
 }
 
 void glcube::draw()
 {
-    //std::cout << "glcube draw" << std::endl;
-    glPushMatrix();
-    glTranslatef(pos[0],pos[1],pos[2]);
-    GLboolean lighting;
+    updateLocalMatrix();
+    QMatrix4x4 combinedMatrix = computeCombinedMatrix();
 
-    glGetBooleanv(GL_LIGHTING, &lighting);
+    QVector3D position(combinedMatrix(0, 3), combinedMatrix(1, 3), combinedMatrix(2, 3));
+    float positionArray[3] = {position.x(), position.y(), position.z()};
 
-    if (lighting)
-        glDisable(GL_LIGHTING);
+    float rotation[9] = { 1,0,0, 0,1,0, 0,0,1 };
 
-    if (GLWidget::useAlpha) {
-        glColor4f(wired[0], wired[1], wired[2], wired[3]);
-    } else {
-        glColor3f(wired[0], wired[1], wired[2]);
+    if (coregl_ != nullptr) {
+        coregl_->collectInstanceDataFromObjects(positionArray, solid, rotation, 1, true);
     }
-    glutWireCube(1.0);
 
-    if (lighting)
-        glEnable(GL_LIGHTING);
-
-    if (GLWidget::useAlpha) {
-        glColor4f(solid[0], solid[1], solid[2], solid[3]);
-    } else {
-        glColor3f(solid[0], solid[1], solid[2]);
+    BOOST_FOREACH( globject &o, objects) {
+        o.draw();
     }
-    glutSolidCube(1.0);
-
-    glPopMatrix();
 }
 
 glcube * glcube::do_clone()

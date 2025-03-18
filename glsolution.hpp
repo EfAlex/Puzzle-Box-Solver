@@ -23,16 +23,21 @@
 #include <vector>
 #include "figure.hpp"
 
+class CoreGL;  // forward declaration
+
 class glsolution: public globject
 {
 public:
     std::vector < figure > solution;
-    float scale;
+
+    CoreGL *coregl_;                /* shader manager — set by GLWidget before draw */
 
     glsolution();
     glsolution(unsigned int s, const std::vector < figure > & , const std::vector < vector_int > & );
     virtual void draw();
     virtual glsolution *do_clone();
+
+    void propagateCoreGL(CoreGL *coregl);  /* push coregl_ down to all children */
 };
 
 #endif // GLSOLUTION_HPP

@@ -20,12 +20,17 @@
 
 #include "common.hpp"
 #include "globject.hpp"
-#include <GL/gl.h>
+#include <QOpenGLFunctions>
+
+class CoreGL;  // forward declaration
 
 class glcube: public globject
 {
 public:
-    GLfloat solid[4], wired[4];
+    GLfloat solid[4];
+
+    bool useAlpha_;                     // whether to render with alpha blending
+
 
     glcube();
     virtual void draw();

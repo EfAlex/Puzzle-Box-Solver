@@ -15,18 +15,22 @@ limitations under the License.
 */
 
 
+
 #include "glwidget.hpp"
-#include <GL/glut.h>
+#include "coregl.hpp"
 #include <glsolution.hpp>
 #include <boost/foreach.hpp>
 #include "box_solver.hpp"
 #include <boost/numeric/ublas/io.hpp>
 #include "box_solution.hpp"
+#include "glcube.hpp"
+#include "glhalfcube.hpp"
+#include <iostream>
 
 extern box_solver gl_box_solver;
 
 GLWidget::GLWidget(QWidget * parent)
-:  QGLWidget(QGLFormat(QGL::AlphaChannel | QGL::Rgba | QGL::DepthBuffer | QGL::DoubleBuffer), parent)
+: QOpenGLWidget(parent)
     ,
 sphi(0.0),
 stheta(0.0),
@@ -35,7 +39,6 @@ sdistance(1.0),
 zNear(1.0), zFar(100.0), aspect(5.0 / 4.0), xcam(0), ycam(0), leftButton(false), middleButton(false), rightButton(false), zoomIn(false), zoomOut(false)
 {
     setWindowTitle(tr("OpenGL Puzzle Box"));
-    makeCurrent();
 
     light0Position[0] = -1;
     light0Position[1] = 1;
@@ -44,71 +47,87 @@ zNear(1.0), zFar(100.0), aspect(5.0 / 4.0), xcam(0), ycam(0), leftButton(false),
     theta[0] = 0.0;
     theta[1] = 0.0;
     theta[2] = 0.0;
+    frame = 0;
+    debugMode_ = false;
 
     QObject::connect(&gl_box_solver, SIGNAL(drawBox()), this, SLOT(updateBox()));
     QObject::connect(this, SIGNAL(stopComputing()), &gl_box_solver, SLOT(stopComputing()));
     QObject::connect(this, SIGNAL(showStatus()), &gl_box_solver, SLOT(updateStatus()));
+
+    time.start();  // start before any resize/draw can fire (fixes valgrind uninit timer)
 }
 
 void GLWidget::initializeGL()
 {
-    //setAutoBufferSwap(false);
+    initializeOpenGLFunctions();
+
+    const char* version = (const char*)glGetString(GL_VERSION);
+    const char* renderer = (const char*)glGetString(GL_RENDERER);
+    const char* vendor = (const char*)glGetString(GL_VENDOR);
+
+    qDebug() << "OpenGL Version:" << (version ? version : "Unknown");
+    qDebug() << "OpenGL Renderer:" << (renderer ? renderer : "Unknown");
+    qDebug() << "OpenGL Vendor:" << (vendor ? vendor : "Unknown");
+
+    // Enable depth testing and face culling for proper 3D rendering
+    glEnable(GL_DEPTH_TEST);
+    //glEnable(GL_CULL_FACE);
+
+    // Auto-buffer swap is handled by QOpenGLWidget
     glClearColor(0.0, 0.0, 0.0, 1.0);
     glPolygonOffset(1.0, 1.0);
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-    glEnable(GL_COLOR_MATERIAL);
-
-//    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH | GLUT_ALPHA | GLUT_MULTISAMPLE);
-//    glutInitWindowSize(500, 500);
-//    glutCreateWindow("rotating cube");
-    GLfloat mat_colormap[] = { 16.0, 48.0, 79.0 };
-    // индексы рассеянного, диффузного, зеркального цвета материала
-    GLfloat mat_shininess[] = { 20.0 };
-    // сила зеркального отражения материала}
-
-    glEnable(GL_LIGHTING);
-    glEnable(GL_LIGHT0);
-
-    //glDepthFunc(GL_LESS);
+    // Depth test (used by shader rendering)
     glDepthFunc(GL_LEQUAL);
 
-    //glShadeModel(GL_FLAT);
+    // Shade model (affects fragment interpolation in shaders too)
     glShadeModel(GL_SMOOTH);
 
-    //glBlendFunc (GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    memset(fps_str, 0, sizeof(fps_str));
 
-    if (useAlpha) {
-        //glColorMaterial(GL_FRONT_AND_BACK, GL_DIFFUSE);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_COLOR_INDEXES, mat_colormap);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);
-        glLightModelf(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
-        glDisable(GL_CULL_FACE);
-        glEnable(GL_BLEND);
-        glDisable(GL_DEPTH_TEST);
-    } else {
-        //glColorMaterial(GL_FRONT, GL_DIFFUSE);
-        glMaterialfv(GL_FRONT, GL_COLOR_INDEXES, mat_colormap);
-        glMaterialfv(GL_FRONT, GL_SHININESS, mat_shininess);
-        glLightModelf(GL_LIGHT_MODEL_TWO_SIDE, GL_FALSE);
-        glEnable(GL_CULL_FACE);
-        glDisable(GL_BLEND);
-        glEnable(GL_DEPTH_TEST);
+    // Neon mode defaults (from Tetris3D: glowIntensity=0.2, bg=0.05,0.05,0.08)
+    m_neonMode = true;
+    m_neonIntensity = 0.2f;
+    m_lightPosition[0] = 0.5f;
+    m_lightPosition[1] = 1.0f;
+    m_lightPosition[2] = 0.3f;
+
+    // Initialize OpenGL debug logger
+    m_debugLogger = new QOpenGLDebugLogger(this);
+    if (m_debugLogger->initialize()) {
+        connect(m_debugLogger, &QOpenGLDebugLogger::messageLogged,
+                this, &GLWidget::onMessageLogged);
+
+        m_debugLogger->startLogging(QOpenGLDebugLogger::SynchronousLogging);
+        m_debugLogger->enableMessages();
     }
-    glEnable(GL_NORMALIZE);
-    time.start();
-    *fps_str = '\0';
+
+    // Phase A: create shader + VAO manager (coregl)
+    coregl_ = new CoreGL();
+    coregl_->init();
+
+    if (!coregl_->isValid()) {
+        qCritical("CoreGL: initialization failed. OpenGL context may not be properly set up.");
+        return;
+    }
+
+
+    // Set up initial projection and view matrices
+    setupProjectionMatrix();
 }
 
-/*void GLWidget::paintEvent(QPaintEvent *)
-{
-    draw();
-}*/
 
 void GLWidget::paintGL()
 {
+    // Always clear the framebuffer here — draw() may return early
+    // (e.g., invalid viewport) and without this clear the old frame
+    // persists as "ghosts" visible in neon mode with additive blending.
+    // Disable blending during clear to avoid additive accumulation artifacts
+    glDisable(GL_BLEND);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_BLEND);
+
     draw();
 }
 
@@ -118,207 +137,145 @@ void GLWidget::resizeGL(int width, int height)
     ysize = height;
     aspect = (float) xsize / (float) ysize;
     glViewport(0, 0, xsize, ysize);
-    update();
+
+    // Update projection matrix on resize
+    setupProjectionMatrix();
+
+    draw();
+}
+
+void GLWidget::setupProjectionMatrix()
+{
+    // Create a proper perspective projection matrix
+    QMatrix4x4 projection;
+    projection.perspective(45.0f, aspect, 0.1f, 100.0f);
+
+    // Create a view matrix (camera position)
+    QMatrix4x4 view;
+    view.translate(0.0f, 0.0f, -5.0f);  // Move camera back
+
+    // Set both matrices in CoreGL
+    if (coregl_) {
+        coregl_->setMatricesPv(projection, view);
+    }
 }
 
 void GLWidget::draw()
 {
+    //if (!QWindow::isExposed())
+    //    return;
 
     //display callback
     //clear frame buffer and z buffer
     //rotate cube
     //and draw
 
-    //clear viewport buffer (color and depth buffers)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glLoadIdentity();           //replace current matrix w/ identity..
-    // else see shadow/flicker of last image
-
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(64.0, aspect, zNear, zFar);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glLightfv(GL_LIGHT0, GL_POSITION, light0Position);
-//    glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 0.0);
-//    glLightf(GL_LIGHT0, GL_LINEAR_ATTENUATION, 0.2);
-//    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 0.4);
-
-    glTranslatef(0.0, 0.0, -sdepth);
-    glRotatef(-stheta, 1.0, 0.0, 0.0);
-    glRotatef(sphi, 0.0, 0.0, 1.0);
-
-    //multiply current matrix by rotation matrix, theta, x, y, z
-    glRotatef(theta[0], 1.0, 0.0, 0.0);
-    glRotatef(theta[1], 0.0, 1.0, 0.0);
-    glRotatef(theta[2], 0.0, 0.0, 1.0);
-
-
-    GLboolean lighting;
-
-    glGetBooleanv(GL_LIGHTING, &lighting);
-
-    double a = 0.5;
-    if (lighting)
-        glDisable(GL_LIGHTING);
-
-    glBegin(GL_LINES);
-    //glColor3d(0.5, 0, 0);
-    glColor3d(1, 0, 0);
-    glVertex3d(0, 0, 0);
-    glVertex3d(a, 0, 0);
-    glEnd();
-
-    glBegin(GL_LINES);
-    //glColor3d(0, 0.5, 0);
-    glColor3d(0, 1, 0);
-    glVertex3d(0, 0, 0);
-    glVertex3d(0, a, 0);
-    glEnd();
-
-    glBegin(GL_LINES);
-    //glColor3d(0,0,0.5);
-    glColor3d(0, 0, 1);
-    glVertex3d(0, 0, 0);
-    glVertex3d(0, 0, a);
-    glEnd();
-
-    if (lighting)
-        glEnable(GL_LIGHTING);
-
-    BOOST_FOREACH(glsolution & o, objs) {
-        o.scale = sdistance;
-        o.draw();
+    // Validate viewport
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    if (debugMode_) {
+        qInfo() << "Viewport: x=" << viewport[0] << " y=" << viewport[1]
+                << " width=" << viewport[2] << " height=" << viewport[3];
     }
 
-#if 0
-    //glDisable(GL_BLEND);
-    //glEnable(GL_DEPTH_TEST);
-    glPushMatrix();
-    GLfloat arr[16] = {
-        0, 0, 1, 0,
-        1, 0, 0, 0,
-        0, 0, 0, 0,
-        0, 0, 0, 1
-    };
-    GLfloat *x1 = &arr[0];
-    GLfloat *y1 = &arr[1];
-    GLfloat *z1 = &arr[2];
-    GLfloat *x2 = &arr[4];
-    GLfloat *y2 = &arr[5];
-    GLfloat *z2 = &arr[6];
-    GLfloat *x3 = &arr[8];
-    GLfloat *y3 = &arr[9];
-    GLfloat *z3 = &arr[10];
-    *x3 = *y1 * *z2 - *z1 * *y2;
-    *y3 = *z1 * *x2 - *x1 * *z2;
-    *z3 = *x1 * *y2 - *y1 * *x2;
-    /*   for (int r = 0; r < 3 ; ++r) {
-       for (int c = 0; c < 3; ++c) {
-       printf("%4.2f ", arr[c+4*r] );
-       }
-       printf("\n");
-       }
-       printf("\n"); */
+    if (viewport[2] <= 0 || viewport[3] <= 0) {
+        qWarning() << "ERROR: Invalid viewport size!";
+        return;
+    }
 
-    glMultMatrixf(arr);
+    // Create a proper perspective projection matrix
+    QMatrix4x4 projection;
+    projection.perspective(45.0f, aspect, 0.1f, 100.0f);
 
-    //glTranslatef(sdistance * 0.0, sdistance * 0.0,sdistance * -3.0);
-    glColor4f(0.5, 0.5, 0.5, 0.9);
-    //SolidHalfCube();
-    glColor4f(1.0, 1.0, 1.0, 0.9);
-    //WiredHalfCube();
+    // Create a view matrix — camera position only (no rotation; rotation is on the model)
+    QMatrix4x4 view;
+    view.translate(0.0f, 0.0f, -sdepth);
 
-    glPopMatrix();
+    // Check OpenGL errors
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        qWarning() << "OpenGL Error before draw:" << error;
+    }
 
-    /*glPushMatrix();
+    // Background: dark blue-gray in neon mode (Tetris3D), black in solid
+    if (m_neonMode) {
+        glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
+    } else {
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    }
+    glDepthMask(GL_TRUE);
 
-       glTranslatef(sdistance * 0.0, sdistance * 0.0,sdistance * -1.0);
-       glColor4f(0.7, 0.7, 0.7, 0.2);
-       SolidHalfCube();
-       glColor4f(1.0, 1.0, 1.0, 0.4);
-       WiredHalfCube();
+    // Disable blending during clear to avoid additive accumulation artifacts
+    glDisable(GL_BLEND);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_BLEND);
 
-       glPopMatrix(); */
+    // Blend mode: additive for neon (glow accumulation), standard alpha for solid
+    if (m_neonMode) {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);              // Additive blending for glow
+        glDisable(GL_CULL_FACE);                        // Disable culling — needed for transparent geometry
+    } else {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // Standard alpha blending
+        // Note: culling disabled for transparent figures (alpha=0.2) — faces disappear if culled
+        glDisable(GL_CULL_FACE);
+    }
 
+    // Pass matrices to CoreGL for use by objects
+    coregl_->setMatricesPv(projection, view);
 
-    /*
-       glPushMatrix();
+    // Build model matrix: rotation (stheta on X, sphi on Z) + identity translation
+    // Matches qt-fix: glRotatef(-stheta, 1,0,0); glRotatef(sphi, 0,0,1);
+    QMatrix4x4 modelMat;
+    modelMat.setToIdentity();
+    modelMat.rotate(-stheta, 1.0f, 0.0f, 0.0f);
+    modelMat.rotate(sphi, 0.0f, 0.0f, 1.0f);
+    coregl_->setModelMatrix(modelMat);
 
-       glColor4f(0.2, 0.2, 0.2, 0.9);
-       glutSolidCube(1.0);
-       glColor4f(0.4, 0.4, 0.4, 0.4);
-       glutWireCube(1.0);
-
-       glPopMatrix();
-     */
+    // Pass light position uniform (from Tetris3D: configurable light direction)
+    coregl_->setLightPosition(m_lightPosition[0], m_lightPosition[1], m_lightPosition[2]);
+    // Pass rendering mode uniform (0 = neon, 1 = solid)
+    coregl_->setRenderingMode(m_neonMode ? 0 : 1);
+    // Pass neon intensity uniform
+    coregl_->setNeonIntensity(m_neonIntensity);
 
 
-    glPushMatrix();
-    glTranslatef(sdistance * -1, sdistance * -1, sdistance * -1);
+    // Reset instance counters / collect instance data — unless updateBox()
+    // already did this on the solver thread (m_dataReady).  Without this
+    // guard the solver thread's data gets overwritten by a stale draw()
+    // call, causing "ghost" artifacts in neon mode.
+    if (!m_dataReady) {
+        coregl_->resetInstanceCounters();
 
-    glPushMatrix();
-    glTranslatef(sdistance * 0.0, sdistance * 0.0, sdistance * 0.0);
-    glColor4f(0.2, 0.2, 0.2, 0.9);
-    glutSolidCube(1.0);
-    glColor4f(0.4, 0.4, 0.4, 0.4);
-    glutWireCube(1.0);
-    glPopMatrix();
+        BOOST_FOREACH(globject & o, objs) {
+            o.draw();
+        }
 
-    glPushMatrix();
-    glTranslatef(sdistance * 1.0, sdistance * 0.0, sdistance * 0.0);
-    glColor4f(0.5, 0.0, 0.0, 0.9);
-    glutSolidCube(1.0);
-    glColor4f(1.0, 0.0, 0.0, 0.9);
-    glutWireCube(1.0);
-    glPopMatrix();
+        // Set instance data for all objects at once
+        if (coregl_->cube_count + coregl_->halfcube_count > 0) {
+            if (coregl_->cube_count > 0) {
+                coregl_->setCubeInstanceData(coregl_->cube_positions, coregl_->cube_colors, coregl_->cube_rotations, coregl_->cube_count);
+            }
+            if (coregl_->halfcube_count > 0) {
+                coregl_->setHalfCubeInstanceData(coregl_->halfcube_positions, coregl_->halfcube_colors, coregl_->halfcube_rotations, coregl_->halfcube_count);
+            }
+        }
+    }
+    m_dataReady = false;
 
-    glPushMatrix();
-    glTranslatef(sdistance * 0.0, sdistance * 1.0, sdistance * 0.0);
-    glColor4f(0.0, 0.5, 0.0, 0.9);
-    glutSolidCube(1.0);
-    glColor4f(0.0, 1.0, 0.0, 0.9);
-    glutWireCube(1.0);
-    glPopMatrix();
+    // Draw
+    if (coregl_->cube_count > 0) {
+        coregl_->drawCubes(coregl_->cube_count);
+    }
+    if (coregl_->halfcube_count > 0) {
+        coregl_->drawHalfCubes(coregl_->halfcube_count);
+    }
 
-    glPushMatrix();
-    glTranslatef(sdistance * 0.0, sdistance * 0.0, sdistance * 1.0);
-    glColor4f(0.0, 0.0, 0.5, 0.9);
-    glutSolidCube(1.0);
-    glColor4f(0.0, 0.0, 1.0, 0.9);
-    glutWireCube(1.0);
-    glPopMatrix();
-
-    glPopMatrix();
-
-
-    glPopMatrix();
-    //colorcube();
-#endif
-    // Code to compute frames per second
     frame++;
-    //time = glutGet(GLUT_ELAPSED_TIME);
     if (time.elapsed() >= 10) {
         snprintf(fps_str, sizeof(fps_str), "FPS: %6.2f", frame * 1000.0 / time.elapsed());
         time.restart();
         frame = 0;
     }
-    //printf("%s\n",s);
-    setOrthographicProjection();
-    void *font = GLUT_BITMAP_8_BY_13;
-    glPushMatrix();
-    glLoadIdentity();
-    glColor3f(1.0, 1.0, 1.0);
-    renderBitmapString(30, 30, 0, font, fps_str);
-    glPopMatrix();
-
-    restorePerspectiveProjection();
-
-    //glFlush();                  //probably a good idea but no effect on this program
-
-    //glutSwapBuffers();          //put image to be drawn in buffer for display
-    //swapBuffers();
 
 }
 
@@ -330,9 +287,26 @@ void GLWidget::mousePressEvent(QMouseEvent * e)
 void GLWidget::mouseMoveEvent(QMouseEvent * e)
 {
     QPoint diff = e->pos() - anchor;
+
     if (e->buttons() & Qt::LeftButton) {
         sphi += (float) diff.x() / 4.0;
         stheta -= (float) diff.y() / 4.0;
+
+        // Clamp vertical rotation to -180 to 180
+        const float maxAngle = 180.0f;
+        if (stheta > maxAngle) {
+            stheta = maxAngle;
+        } else if (stheta < -maxAngle) {
+            stheta = -maxAngle;
+        }
+
+        // Clamp horizontal rotation to prevent extreme wrapping
+        const float maxPhi = 360.0f;
+        if (sphi > maxPhi) {
+            sphi -= 360.0f;
+        } else if (sphi < -maxPhi) {
+            sphi += 360.0f;
+        }
     } else if (e->buttons() & Qt::MiddleButton) {
         sdepth -= (float) diff.y() / 10.0;
     } else if (e->buttons() & Qt::RightButton) {
@@ -343,6 +317,9 @@ void GLWidget::mouseMoveEvent(QMouseEvent * e)
         if (sdistance > 10) {
             sdistance = 10;
         }
+        if (coregl_) {
+            coregl_->setScaleFactor(sdistance);
+        }
     }
 
     anchor = e->pos();
@@ -351,61 +328,10 @@ void GLWidget::mouseMoveEvent(QMouseEvent * e)
 
 void GLWidget::wheelEvent(QWheelEvent * e)
 {
-    e->delta() > 0 ? sdepth += 0.1f : sdepth -= 0.1f;
+    e->angleDelta().y() > 0 ? sdepth += 0.1f : sdepth -= 0.1f;
     update();
 }
 
-void GLWidget::restorePerspectiveProjection()
-{
-
-    glMatrixMode(GL_PROJECTION);
-    // restore previous projection matrix
-    glPopMatrix();
-
-    // get back to modelview mode
-    glMatrixMode(GL_MODELVIEW);
-
-    glEnable(GL_LIGHTING);
-    glEnable(GL_LIGHT0);
-    if (useAlpha) {
-        glEnable(GL_BLEND);
-    }
-}
-
-void GLWidget::setOrthographicProjection()
-{
-
-    // switch to projection mode
-    glMatrixMode(GL_PROJECTION);
-
-    // save previous matrix which contains the
-    //settings for the perspective projection
-    glPushMatrix();
-
-    // reset matrix
-    glLoadIdentity();
-
-    // set a 2D orthographic projection
-    gluOrtho2D(0, xsize, ysize, 0);
-
-    // switch back to modelview mode
-    glMatrixMode(GL_MODELVIEW);
-    glDisable(GL_LIGHTING);
-    glDisable(GL_LIGHT0);
-    if (useAlpha) {
-        glDisable(GL_BLEND);
-    }
-}
-
-void GLWidget::renderBitmapString(float x, float y, float z, void *font, char *string)
-{
-
-    char *c;
-    glRasterPos3f(x, y, z);
-    for (c = string; *c != '\0'; c++) {
-        glutBitmapCharacter(font, *c);
-    }
-}
 
 void GLWidget::keyPressEvent(QKeyEvent * e)
 {
@@ -414,9 +340,17 @@ void GLWidget::keyPressEvent(QKeyEvent * e)
             emit showStatus();
             break;
         case Qt::Key_A:
-            useAlpha = !useAlpha;
-            initializeGL();
+            // Toggle neon mode (from Tetris3D: A key toggles between neon glow and solid lit)
+            m_neonMode = !m_neonMode;
             update();
+            break;
+        case Qt::Key_D:
+            if (coregl_) {
+                static int debugMode = 0;
+                debugMode = (debugMode + 1) % 4;
+                coregl_->setDebugMode(debugMode);
+                update();
+            }
             break;
         case Qt::Key_Left:
             if (box_solution::solution_list.size()) {
@@ -425,8 +359,6 @@ void GLWidget::keyPressEvent(QKeyEvent * e)
                 }
                 box_solution::solution_list[gl_pos].to_vector(gl_solution, gl_solution_pos);
                 gl_count = gl_solution.size();
-                std::cout << "Solution: " << gl_pos << std::endl;
-                std::cout << box_solution::solution_list[gl_pos] << std::endl;
                 updateBox();
             }
             break;
@@ -437,8 +369,6 @@ void GLWidget::keyPressEvent(QKeyEvent * e)
                 }
                 box_solution::solution_list[gl_pos].to_vector(gl_solution, gl_solution_pos);
                 gl_count = gl_solution.size();
-                std::cout << "Solution: " << gl_pos << std::endl;
-                std::cout << box_solution::solution_list[gl_pos] << std::endl;
                 updateBox();
             }
             break;
@@ -446,7 +376,7 @@ void GLWidget::keyPressEvent(QKeyEvent * e)
             close();
             break;
         default:
-            QGLWidget::keyPressEvent(e);
+            QWidget::keyPressEvent(e);
             break;
     }
 }
@@ -460,10 +390,45 @@ void GLWidget::closeEvent(QCloseEvent * event)
 
 void GLWidget::updateBox()
 {
-    objs.resize(0);
+    objs.clear();
     glsolution *sol = new glsolution(gl_count, gl_solution, gl_solution_pos);
+    sol->propagateCoreGL(coregl_);
     objs.push_back(sol);
+
+    if (objs.empty()) {
+        qWarning() << "No objects created in updateBox!";
+        return;
+    }
+
+    // Collect instance data on the solver thread BEFORE update().
+    // This avoids a data race: without this, paintGL() on the main thread
+    // reads instance data arrays that are still being written by the solver
+    // thread, causing stale geometry to render as "ghosts" (visible with
+    // additive blending in neon mode).
+    coregl_->resetInstanceCounters();
+    BOOST_FOREACH(globject & o, objs) {
+        o.draw();
+    }
+    if (coregl_->cube_count > 0) {
+        coregl_->setCubeInstanceData(coregl_->cube_positions, coregl_->cube_colors, coregl_->cube_rotations, coregl_->cube_count);
+    }
+    if (coregl_->halfcube_count > 0) {
+        coregl_->setHalfCubeInstanceData(coregl_->halfcube_positions, coregl_->halfcube_colors, coregl_->halfcube_rotations, coregl_->halfcube_count);
+    }
+    m_dataReady = true;
+
     update();
+}
+
+void GLWidget::onMessageLogged(const QOpenGLDebugMessage &message)
+{
+    // We only care about actual errors, not performance warnings or notifications
+    if (message.severity() == QOpenGLDebugMessage::HighSeverity ||
+        message.type() == QOpenGLDebugMessage::ErrorType) {
+
+        qCritical() << "GL ERROR:" << message.message();
+        qCritical() << "GL ERROR ID:" << message.id();
+    }
 }
 
 bool GLWidget::useAlpha = true;

@@ -25,8 +25,6 @@ figure_cube::figure_cube()
 
 figure_cube::figure_cube(const figure_cube & other)
 {
-    //std::cout << "Figure_cube copy" << std::endl;
-//    std::cout << other.pos << std::endl;
     pos[0] = other.pos[0];
     pos[1] = other.pos[1];
     pos[2] = other.pos[2];
@@ -35,7 +33,6 @@ figure_cube::figure_cube(const figure_cube & other)
 
 figure_cube & figure_cube::operator=(const figure_cube &other)
 {
-    //std::cout << "Figure_cube operator=" << std::endl;
     if (this == &other) {
         return *this;
     }

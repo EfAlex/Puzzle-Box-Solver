@@ -20,21 +20,22 @@
 
 #include "common.hpp"
 #include "globject.hpp"
-#include <GL/gl.h>
+#include <QOpenGLFunctions>
+
+class CoreGL;  // forward declaration
 
 class glhalfcube: public globject
 {
 public:
-    GLfloat solid[4], wired[4];
+    GLfloat solid[4];
     boost::numeric::ublas::vector < boost::numeric::ublas::vector < GLfloat > > direction;
+
 
     glhalfcube();
     virtual void draw();
     virtual glhalfcube *do_clone();
-private:
 
-    void solidHalfCube();
-    void wiredHalfCube();
+private:
 };
 
 #endif // GLHALFCUBE_HPP

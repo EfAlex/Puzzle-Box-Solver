@@ -34,7 +34,6 @@ public:
     bool operator ==(const box &) const;
     bool operator !=(const box &) const;
     void dump();
-//    box & operator =(const box&);
     void rotateX();
     void rotateZ();
 private:

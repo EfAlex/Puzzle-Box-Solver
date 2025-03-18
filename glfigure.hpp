@@ -20,19 +20,22 @@
 
 #include "common.hpp"
 #include "globject.hpp"
-#include <GL/gl.h>
+#include <QOpenGLFunctions>
 #include <vector>
 #include "figure.hpp"
+
+class CoreGL;  // forward declaration
 
 class glfigure: public globject
 {
 public:
-    GLfloat solid[4], wired[4];
+    GLfloat solid[4];
 
     glfigure();
-    glfigure(const figure &, const GLfloat solidc[4], const GLfloat wiredc[4]);
+    glfigure(const figure &, const GLfloat solidc[4]);
     virtual void draw();
     virtual glfigure *do_clone();
+
 private:
     figure f;
 };

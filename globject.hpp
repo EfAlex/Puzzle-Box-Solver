@@ -21,6 +21,8 @@ limitations under the License.
 #include "common.hpp"
 #include "GL/gl.h"
 #include <boost/ptr_container/ptr_vector.hpp>
+#include "coregl.hpp"
+#include <QMatrix4x4>
 
 class globject;
 
@@ -30,12 +32,25 @@ public:
     GLfloat pos[3];
 
     globject();
+    ~globject();  // virtual destructor for polymorphic deletion via boost::ptr_vector
     virtual void draw();
     globject *new_clone(globject &);
     globject *clone();
     virtual globject *do_clone();
+    virtual void setCoreGL(CoreGL *coregl);
+
+    void setParent(globject* parent);
+    globject* getParent() const;
+    const QMatrix4x4& computeCombinedMatrix() const;
+    void updateLocalMatrix();
+
 protected:
     boost::ptr_vector < globject > objects;
+    CoreGL *coregl_;
+    QMatrix4x4 modelMatrix_;  // Local transformation matrix
+    globject* parent_;        // Parent object in hierarchy
+    mutable QMatrix4x4 combinedMatrix_;  // Cached combined transformation matrix
+    mutable bool combinedMatrixValid_;   // Flag to track if cached matrix is valid
 };
 
 #endif // GLOBJECT_HPP

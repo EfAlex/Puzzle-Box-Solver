@@ -71,14 +71,12 @@ bool box_solution::isUnique(std::vector < figure > nf, const std::vector < vecto
     }
     BOOST_FOREACH(box_solution & bs2, solution_list) {
         box b2;
-        // fill the box with all figures
         std::vector < figure > s;
         std::vector < vector_int > sp;
         bs2.to_vector(s, sp);
         for (unsigned int i = 0; i < bs2.solution.size(); ++i) {
             b2.addFigure(s[i], sp[i]);
         }
-        // remove one figure from box and compare the boxes
         for (unsigned int i = 0; i < nf.size(); i++) {
             box cb1(b1);
             box cb2(b2);

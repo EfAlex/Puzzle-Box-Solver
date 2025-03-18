@@ -29,7 +29,6 @@ cube::cube():
 
 cube::cube(const cube &other)
 {
-    //std::cout << "Cube copy" << std::endl;
     storage = other.storage;
     v[0] = other.v[0];
     v[1] = other.v[1];
@@ -41,7 +40,6 @@ cube & cube::operator=(const cube &other)
     if (this == &other) {
         return *this;
     }
-    //std::cout << "Cube operator =" << std::endl;
     storage = other.storage;
     v[0] = other.v[0];
     v[1] = other.v[1];

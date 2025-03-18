@@ -303,3 +303,9 @@ void box::rotateX()
         }
     }
 }
+
+#include <cmath>
+
+unsigned int get_factorial(unsigned int n) {
+    return static_cast<unsigned int>(std::tgamma(n + 1));
+}

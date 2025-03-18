@@ -16,70 +16,64 @@
 
 
 #include "glsolution.hpp"
-#include <GL/glut.h>
 #include <boost/foreach.hpp>
 #include "globject.hpp"
 #include "glfigure.hpp"
+#include "glcube.hpp"
+#include "glhalfcube.hpp"
+#include "coregl.hpp"
 #include <boost/numeric/ublas/io.hpp>
-#include <iostream>
 
 using namespace boost::numeric::ublas;
 
 glsolution::glsolution() {
     objects.resize(0);
+    coregl_ = nullptr;
 }
 
 glsolution::glsolution(unsigned int s, const std::vector < figure > & sol, const std::vector < vector_int > & sol_pos)
 {
-    const GLfloat colors[2][8][4] = {
-        {
-            { 0.5, 0.0, 0.0, 0.2 },
-            { 0.0, 0.5, 0.0, 0.2 },
-            { 0.0, 0.0, 0.5, 0.2 },
-            { 0.3, 0.3, 0.0, 0.2 },
-            { 0.0, 0.3, 0.3, 0.2 },
-            { 0.3, 0.0, 0.3, 0.2 },
-            { 0.2, 0.2, 0.2, 0.2 },
-            { 0.3, 0.4, 0.4, 0.2 }
-        },
-        {
-            { 1.0, 0.0, 0.0, 0.4 },
-            { 0.0, 1.0, 0.0, 0.4 },
-            { 0.0, 0.0, 1.0, 0.4 },
-            { 0.6, 0.6, 0.0, 0.4 },
-            { 0.0, 0.6, 0.6, 0.4 },
-            { 0.6, 0.0, 0.6, 0.4 },
-            { 0.4, 0.4, 0.4, 0.4 },
-            { 0.6, 0.8, 0.8, 0.4 }
-        }
+    static const GLfloat figColors[][4] = {
+        { 0.5, 0.0, 0.0, 0.2 },
+        { 0.0, 0.5, 0.0, 0.2 },
+        { 0.0, 0.0, 0.5, 0.2 },
+        { 0.3, 0.3, 0.0, 0.2 },
+        { 0.0, 0.3, 0.3, 0.2 },
+        { 0.3, 0.0, 0.3, 0.2 },
+        { 0.2, 0.2, 0.2, 0.2 },
+        { 0.3, 0.4, 0.4, 0.2 }
     };
 
     objects.resize(0);
+    coregl_ = nullptr;
 
+    unsigned int count = std::min(s, static_cast<unsigned int>(sol.size()));
+    count = std::min(count, static_cast<unsigned int>(sol_pos.size()));
 
-    for (unsigned int i = 0; i < s; ++i) {
-        /*std::cout << sol_pos[i] << std::endl;
-        figure ff = sol[s];
-
-        for( unsigned int fci = 0 ; fci < ff.cubes.size(); ++fci) {
-            std::cout << ff.cubes[fci].pos << " " << ff.cubes[fci].c.getState() << std::endl;
-        }*/
-        glfigure *f = new glfigure(sol[i], colors[0][i] , colors[1][i]);
-        f->pos[0] = sol_pos[i][0];
-        f->pos[1] = sol_pos[i][1];
-        f->pos[2] = sol_pos[i][2];
+    for (unsigned int i = 0; i < count; ++i) {
+        glfigure *f = new glfigure(sol[i], figColors[i]);
+        f->pos[0] = sol_pos[i][0] - 1.5f;
+        f->pos[1] = sol_pos[i][1] - 1.0f;
+        f->pos[2] = sol_pos[i][2] - 0.5f;
         objects.push_back(f);
     }
 }
 
-void glsolution::draw()
-{
-    //std::cout << "glsolution draw" << std::endl;
+/* Propagate coregl_ pointer down through all child objects */
+void glsolution::propagateCoreGL(CoreGL *coregl) {
+    coregl_ = coregl;
     BOOST_FOREACH(globject &o, objects) {
-        glPushMatrix();
-        glTranslatef((o.pos[0] - 1.5) * scale, (o.pos[1] - 1.0) * scale, (o.pos[2] - 0.5) * scale);
+        o.setCoreGL(coregl);
+    }
+}
+
+void glsolution::draw() {
+    modelMatrix_.setToIdentity();
+    modelMatrix_.translate(pos[0], pos[1], pos[2]);
+    combinedMatrixValid_ = false;
+
+    BOOST_FOREACH(globject &o, objects) {
         o.draw();
-        glPopMatrix();
     }
 }
 

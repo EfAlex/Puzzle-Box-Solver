@@ -4,7 +4,8 @@
 
 CONFIG += warn_on
 #CONFIG += precompile_header
-CONFIG += release
+CONFIG += debug
+#CONFIG += release
 
 TEMPLATE = app
 TARGET = glboxsolver
@@ -14,11 +15,12 @@ INCLUDEPATH += .
 QMAKE_CXXFLAGS_RELEASE=-O3 -DNDEBUG
 QMAKE_CFLAGS_RELEASE=-O3 -DNDEBUG
 
-# Input
+
 HEADERS += box.hpp \
            box_solution.hpp \
            box_solver.hpp \
            common.hpp \
+           coregl.hpp \
            cube.hpp \
            figure.hpp \
            figure_cube.hpp \
@@ -31,6 +33,7 @@ HEADERS += box.hpp \
 SOURCES += box.cpp \
            box_solution.cpp \
            box_solver.cpp \
+           coregl.cpp \
            cube.cpp \
            figure.cpp \
            figure_cube.cpp \
@@ -41,6 +44,6 @@ SOURCES += box.cpp \
            glsolution.cpp \
            glwidget.cpp \
            main.cpp
-QT           += widgets opengl
+QT += widgets opengl
 PRECOMPILED_HEADER = common.hpp
-LIBS += -lglut -lGLU
+LIBS += -lGLU -lGL

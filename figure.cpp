@@ -38,7 +38,6 @@ void figure::reset()
 }
 
 figure::figure(const figure & other) {
-    //std::cout << "Figure copy" << std::endl;
     cubes.resize(0);
     direction[0].resize(3);
     direction[1].resize(3);
@@ -58,7 +57,6 @@ figure::figure(const figure & other) {
 }
 
 figure &figure::operator=(const figure & other) {
-    //std::cout << "Figure operator=" << std::endl;
     if (this == &other) {
         return *this;
     }

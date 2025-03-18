@@ -17,39 +17,32 @@ limitations under the License.
 //#include "box_solver.hpp"
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QMessageBox>
+#include <QGuiApplication>         // for AA_EnableHighDpiScaling
+#include <QSurfaceFormat>
 #include "glwidget.hpp"
 #include "box_solver.hpp"
-#include <GL/glut.h>
 
 box_solver gl_box_solver;
 
 int main(int argc, char **argv)
 {
-    /*
-    box_solver b;
-    b.run();
-    */
-
-    glutInit(&argc,argv);
+    // High-DPI support (from Tetris3D) — MUST be before QApplication
+    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 
     QApplication a(argc, argv);
-    if (!QGLFormat::hasOpenGL()) {
-	QMessageBox::information(0, "OpenGL boxes",
-				 "This system does not support OpenGL/framebuffer objects.");
-        return -1;
-    }
-    QGLFormat glf = QGLFormat::defaultFormat();
-    glf.setSampleBuffers(true);
-    glf.setSamples(4);
-    QGLFormat::setDefaultFormat(glf);
-    glf = QGLFormat::defaultFormat();
-    glf.setSampleBuffers(true);
-    glf.setSamples(16);
-    QGLFormat::setDefaultFormat(glf);
-    glf = QGLFormat::defaultFormat();
-    glf.setSampleBuffers(true);
-    glf.setSamples(64);
-    QGLFormat::setDefaultFormat(glf);
+
+    QSurfaceFormat fmt;
+    fmt.setProfile(QSurfaceFormat::CoreProfile);
+    fmt.setVersion(3, 3);
+    fmt.setSamples(4);                  // 4x MSAA antialiasing (from Tetris3D)
+    fmt.setStencilBufferSize(-1);       // stencil buffer for future use
+    fmt.setOption(QSurfaceFormat::DebugContext);
+    QSurfaceFormat::setDefaultFormat(fmt);
+
+#ifdef Q_OS_LINUX
+    qputenv("QT_OPENGL", "desktop");
+#endif
 
     GLWidget widget(0);
     widget.resize(640, 480);
