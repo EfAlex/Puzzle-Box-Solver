@@ -52,8 +52,8 @@ zNear(1.0), zFar(100.0), aspect(5.0 / 4.0), xcam(0), ycam(0), leftButton(false),
 
 void GLWidget::initializeGL()
 {
-    setAutoBufferSwap(false);
-    glClearColor(0.0, 0.0, 0.0, 0.0);
+    //setAutoBufferSwap(false);
+    glClearColor(0.0, 0.0, 0.0, 1.0);
     glPolygonOffset(1.0, 1.0);
     glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
     glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
@@ -118,7 +118,7 @@ void GLWidget::resizeGL(int width, int height)
     ysize = height;
     aspect = (float) xsize / (float) ysize;
     glViewport(0, 0, xsize, ysize);
-    draw();
+    update();
 }
 
 void GLWidget::draw()
@@ -318,7 +318,7 @@ void GLWidget::draw()
     //glFlush();                  //probably a good idea but no effect on this program
 
     //glutSwapBuffers();          //put image to be drawn in buffer for display
-    swapBuffers();
+    //swapBuffers();
 
 }
 
@@ -346,13 +346,13 @@ void GLWidget::mouseMoveEvent(QMouseEvent * e)
     }
 
     anchor = e->pos();
-    draw();
+    update();
 }
 
 void GLWidget::wheelEvent(QWheelEvent * e)
 {
     e->delta() > 0 ? sdepth += 0.1f : sdepth -= 0.1f;
-    draw();
+    update();
 }
 
 void GLWidget::restorePerspectiveProjection()
@@ -416,7 +416,7 @@ void GLWidget::keyPressEvent(QKeyEvent * e)
         case Qt::Key_A:
             useAlpha = !useAlpha;
             initializeGL();
-            draw();
+            update();
             break;
         case Qt::Key_Left:
             if (box_solution::solution_list.size()) {
@@ -463,7 +463,7 @@ void GLWidget::updateBox()
     objs.resize(0);
     glsolution *sol = new glsolution(gl_count, gl_solution, gl_solution_pos);
     objs.push_back(sol);
-    draw();
+    update();
 }
 
 bool GLWidget::useAlpha = true;
