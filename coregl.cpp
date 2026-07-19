@@ -15,7 +15,6 @@
 */
 
 #include "coregl.hpp"
-#include <cstring>
 #include <QCoreApplication>
 #include <QFile>
 #include <QDebug>

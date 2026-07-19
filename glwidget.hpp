@@ -34,6 +34,7 @@ class GLWidget : public QOpenGLWidget, protected QOpenGLFunctions
 
 public:
     GLWidget(QWidget *parent);
+    ~GLWidget();
 
     void mousePressEvent(QMouseEvent *);
     void mouseMoveEvent(QMouseEvent *);
@@ -44,6 +45,9 @@ public:
     static unsigned int gl_count, gl_pos;
     static std::vector < figure > gl_solution;
     static std::vector < vector_int > gl_solution_pos;
+    static std::mutex glSolutionMutex;
+    static void setGLSolution(unsigned int count, const std::vector<figure> &sol,
+                              const std::vector<vector_int> &sol_pos);
 
 signals:
     void stopComputing();
@@ -89,7 +93,7 @@ private:
     float m_lightPosition[3] = {0.5f, 1.0f, 0.3f};  // configurable light direction
 
     /* Instance data ready flag — set in updateBox() on solver thread, checked in draw() */
-    bool m_dataReady = false;
+    std::atomic<bool> m_dataReady{false};
 
     void restorePerspectiveProjection();
     void setOrthographicProjection();

@@ -21,11 +21,9 @@ limitations under the License.
 #include <glsolution.hpp>
 #include <boost/foreach.hpp>
 #include "box_solver.hpp"
-#include <boost/numeric/ublas/io.hpp>
 #include "box_solution.hpp"
 #include "glcube.hpp"
 #include "glhalfcube.hpp"
-#include <iostream>
 
 extern box_solver gl_box_solver;
 
@@ -55,6 +53,11 @@ zNear(1.0), zFar(100.0), aspect(5.0 / 4.0), xcam(0), ycam(0), leftButton(false),
     QObject::connect(this, SIGNAL(showStatus()), &gl_box_solver, SLOT(updateStatus()));
 
     time.start();  // start before any resize/draw can fire (fixes valgrind uninit timer)
+}
+
+GLWidget::~GLWidget()
+{
+    delete coregl_;
 }
 
 void GLWidget::initializeGL()
@@ -243,7 +246,7 @@ void GLWidget::draw()
     // already did this on the solver thread (m_dataReady).  Without this
     // guard the solver thread's data gets overwritten by a stale draw()
     // call, causing "ghost" artifacts in neon mode.
-    if (!m_dataReady) {
+    if (!m_dataReady.load(std::memory_order_acquire)) {
         coregl_->resetInstanceCounters();
 
         BOOST_FOREACH(globject & o, objs) {
@@ -260,7 +263,7 @@ void GLWidget::draw()
             }
         }
     }
-    m_dataReady = false;
+    m_dataReady.store(false, std::memory_order_release);
 
     // Draw
     if (coregl_->cube_count > 0) {
@@ -353,7 +356,7 @@ void GLWidget::keyPressEvent(QKeyEvent * e)
             }
             break;
         case Qt::Key_Left:
-            if (box_solution::solution_list.size()) {
+            if (!box_solution::empty()) {
                 if (gl_pos > 0) {
                     gl_pos--;
                 }
@@ -363,8 +366,8 @@ void GLWidget::keyPressEvent(QKeyEvent * e)
             }
             break;
         case Qt::Key_Right:
-            if (box_solution::solution_list.size()) {
-                if (gl_pos < box_solution::solution_list.size() - 1) {
+            if (!box_solution::empty()) {
+                if (gl_pos < box_solution::solution_list_size() - 1) {
                     gl_pos++;
                 }
                 box_solution::solution_list[gl_pos].to_vector(gl_solution, gl_solution_pos);
@@ -390,8 +393,19 @@ void GLWidget::closeEvent(QCloseEvent * event)
 
 void GLWidget::updateBox()
 {
+    // Snapshot shared state under mutex to avoid data race with worker thread.
+    unsigned int count;
+    std::vector<figure> solution;
+    std::vector<vector_int> solution_pos;
+    {
+        std::lock_guard<std::mutex> lock(glSolutionMutex);
+        count = gl_count;
+        solution = gl_solution;
+        solution_pos = gl_solution_pos;
+    }
+
     objs.clear();
-    glsolution *sol = new glsolution(gl_count, gl_solution, gl_solution_pos);
+    glsolution *sol = new glsolution(count, solution, solution_pos);
     sol->propagateCoreGL(coregl_);
     objs.push_back(sol);
 
@@ -409,13 +423,18 @@ void GLWidget::updateBox()
     BOOST_FOREACH(globject & o, objs) {
         o.draw();
     }
+
+    // OpenGL context is only current inside paintGL()/initializeGL()/resizeGL().
+    // updateBox() is called from solver thread via queued signal — context NOT current.
+    makeCurrent();
     if (coregl_->cube_count > 0) {
         coregl_->setCubeInstanceData(coregl_->cube_positions, coregl_->cube_colors, coregl_->cube_rotations, coregl_->cube_count);
     }
     if (coregl_->halfcube_count > 0) {
         coregl_->setHalfCubeInstanceData(coregl_->halfcube_positions, coregl_->halfcube_colors, coregl_->halfcube_rotations, coregl_->halfcube_count);
     }
-    m_dataReady = true;
+    m_dataReady.store(true, std::memory_order_release);
+    doneCurrent();
 
     update();
 }
@@ -436,4 +455,14 @@ unsigned int GLWidget::gl_pos = 0;
 unsigned int GLWidget::gl_count = 0;
 std::vector < figure > GLWidget::gl_solution(0);
 std::vector < vector_int > GLWidget::gl_solution_pos(0);
+std::mutex GLWidget::glSolutionMutex;
+
+void GLWidget::setGLSolution(unsigned int count, const std::vector<figure> &sol,
+                             const std::vector<vector_int> &sol_pos)
+{
+    std::lock_guard<std::mutex> lock(glSolutionMutex);
+    gl_count = count;
+    gl_solution = sol;
+    gl_solution_pos = sol_pos;
+}
 

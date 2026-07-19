@@ -22,7 +22,6 @@
 #include "glcube.hpp"
 #include "glhalfcube.hpp"
 #include "coregl.hpp"
-#include <boost/numeric/ublas/io.hpp>
 
 using namespace boost::numeric::ublas;
 
@@ -47,8 +46,7 @@ glsolution::glsolution(unsigned int s, const std::vector < figure > & sol, const
     objects.resize(0);
     coregl_ = nullptr;
 
-    unsigned int count = std::min(s, static_cast<unsigned int>(sol.size()));
-    count = std::min(count, static_cast<unsigned int>(sol_pos.size()));
+    size_t count = std::min<size_t>(s, std::min(sol.size(), sol_pos.size()));
 
     for (unsigned int i = 0; i < count; ++i) {
         glfigure *f = new glfigure(sol[i], figColors[i]);

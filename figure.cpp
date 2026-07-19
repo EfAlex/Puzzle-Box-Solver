@@ -17,10 +17,7 @@ limitations under the License.
 
 #include "figure.hpp"
 #include "figure_cube.hpp"
-#include <boost/foreach.hpp>
-#include <iostream>
-
-using namespace boost::numeric::ublas;
+#include <cstring>
 
 figure::figure()
 {
@@ -28,7 +25,7 @@ figure::figure()
 }
 void figure::reset()
 {
-    cubes.resize(0);
+    n_cubes = 0;
     direction[0].resize(3);
     direction[1].resize(3);
     direction[0][1] = direction[0][2] =
@@ -38,7 +35,10 @@ void figure::reset()
 }
 
 figure::figure(const figure & other) {
-    cubes.resize(0);
+    n_cubes = other.n_cubes;
+    for (uint8_t i = 0; i < n_cubes; ++i) {
+        cubes[i] = other.cubes[i];
+    }
     direction[0].resize(3);
     direction[1].resize(3);
 
@@ -48,19 +48,16 @@ figure::figure(const figure & other) {
     direction[1][0] = other.direction[1][0];
     direction[1][1] = other.direction[1][1];
     direction[1][2] = other.direction[1][2];
-
-    BOOST_FOREACH(const figure_cube & c, other.cubes) {
-        figure_cube *p = new figure_cube(c);
-        cubes.push_back(p);
-    }
-
 }
 
 figure &figure::operator=(const figure & other) {
     if (this == &other) {
         return *this;
     }
-    cubes.resize(0);
+    n_cubes = other.n_cubes;
+    for (uint8_t i = 0; i < n_cubes; ++i) {
+        cubes[i] = other.cubes[i];
+    }
     direction[0].resize(3);
     direction[1].resize(3);
 
@@ -71,47 +68,35 @@ figure &figure::operator=(const figure & other) {
     direction[1][1] = other.direction[1][1];
     direction[1][2] = other.direction[1][2];
 
-    BOOST_FOREACH(const figure_cube & c, other.cubes) {
-        figure_cube *p = new figure_cube(c);
-        cubes.push_back(p);
-    }
-
-
     return *this;
 }
 
 void figure::addFigureCube(figure_cube i)
 {
-    figure_cube *p = new figure_cube(i);
-    cubes.push_back(p);
+    cubes[n_cubes++] = i;
 }
 
-void figure::rotate(matrix < int >m)
+void figure::rotate(const Mat3 &m)
 {
-    BOOST_FOREACH(figure_cube & i, cubes) {
-        vector_int p (3);
-        p[0] = i.pos[0];
-        p[1] = i.pos[1];
-        p[2] = i.pos[2];
-        p = prod(m, p);
-        i.pos[0] = p[0];
-        i.pos[1] = p[1];
-        i.pos[2] = p[2];
-        int *orig = i.c.getVector();
-        vector_int v (3);
-        v[0] = orig[0];
-        v[1] = orig[1];
-        v[2] = orig[2];
-        vector_int res (3);
-        res = prod(m, v);
-        int r[3];
-        r[0] = res[0];
-        r[1] = res[1];
-        r[2] = res[2];
-        i.c.setVector(r);
+    for (uint8_t ci = 0; ci < n_cubes; ++ci) {
+        std::array<int, 3> p = {{ cubes[ci].pos[0], cubes[ci].pos[1], cubes[ci].pos[2] }};
+        p = mat3_mul_vec(m, p);
+        cubes[ci].pos[0] = p[0];
+        cubes[ci].pos[1] = p[1];
+        cubes[ci].pos[2] = p[2];
+        if (cubes[ci].c.isHalf()) {
+            const int *dv = cubes[ci].c.getVector();
+            std::array<int, 3> v = {{ dv[0], dv[1], dv[2] }};
+            auto res = mat3_mul_vec(m, v);
+            cubes[ci].c.setVector(&res[0]);
+        }
     }
-    direction[0] = prod(m, direction[0]);
-    direction[1] = prod(m, direction[1]);
+    std::array<int, 3> d0 = {{ direction[0][0], direction[0][1], direction[0][2] }};
+    std::array<int, 3> d1 = {{ direction[1][0], direction[1][1], direction[1][2] }};
+    d0 = mat3_mul_vec(m, d0);
+    d1 = mat3_mul_vec(m, d1);
+    direction[0][0] = d0[0]; direction[0][1] = d0[1]; direction[0][2] = d0[2];
+    direction[1][0] = d1[0]; direction[1][1] = d1[1]; direction[1][2] = d1[2];
 }
 figure *figure::new_clone()
 {

@@ -34,22 +34,23 @@ void main() {
         return;
     }
 
+    // Edge detection: distance from each edge of the face [0,1]x[0,1]
+    float edgeSize = 0.06;        // Tight edge (Tetris3D uses 0.05)
+    float smoothWidth = 0.015;    // Slightly softer than Tetris3D's 0.01
+
+    float distX = min(v_uv.x, 1.0 - v_uv.x);
+    float distY = min(v_uv.y, 1.0 - v_uv.y);
+
+    float edgeFactorX = 1.0 - smoothstep(edgeSize - smoothWidth, edgeSize + smoothWidth, distX);
+    float edgeFactorY = 1.0 - smoothstep(edgeSize - smoothWidth, edgeSize + smoothWidth, distY);
+    float edgeFactor = max(edgeFactorX, edgeFactorY);
+
+
     if (u_renderingMode == 0) {
         // ================================================================
         //  NEON GLOW MODE (from Tetris3D)
         //  UV-based edge detection + additive blending
         // ================================================================
-
-        // Edge detection: distance from each edge of the face [0,1]x[0,1]
-        float edgeSize = 0.06;        // Tight edge (Tetris3D uses 0.05)
-        float smoothWidth = 0.015;    // Slightly softer than Tetris3D's 0.01
-
-        float distX = min(v_uv.x, 1.0 - v_uv.x);
-        float distY = min(v_uv.y, 1.0 - v_uv.y);
-
-        float edgeFactorX = 1.0 - smoothstep(edgeSize - smoothWidth, edgeSize + smoothWidth, distX);
-        float edgeFactorY = 1.0 - smoothstep(edgeSize - smoothWidth, edgeSize + smoothWidth, distY);
-        float edgeFactor = max(edgeFactorX, edgeFactorY);
 
         // SAFEGUARD: ensure intensity never drops to zero
         float safeIntensity = max(u_neonIntensity, 0.01);
@@ -70,7 +71,7 @@ void main() {
 
     } else {
         // ================================================================
-        //  SOLID LIT MODE (from Tetris3D: simple diffuse + ambient)
+        //  SOLID LIT MODE WITH DARK EDGES
         // ================================================================
 
         vec3 N = normalize(v_normal);
@@ -80,6 +81,15 @@ void main() {
         float diff = max(dot(N, L), 0.0);
         float ambient = 0.3;
 
-        FragColor = vec4(v_color.rgb * (ambient + diff), 1.0);
+        // Calculate the standard diffuse lighting
+        vec3 baseLitColor = v_color.rgb * (ambient + diff);
+
+        // Define how dark the edges should be (0.2 = 80% darker, 0.0 = pitch black)
+        vec3 darkEdgeColor = baseLitColor * 0.2; 
+
+        // Mix between the base lit color and the dark edge color based on UV proximity
+        vec3 finalColor = mix(baseLitColor, darkEdgeColor, edgeFactor);
+
+        FragColor = vec4(finalColor, 1.0);
     }
 }

@@ -18,7 +18,20 @@
 #ifndef COMMON_HPP
 #define COMMON_HPP
 
+#include <array>
 #include <boost/numeric/ublas/vector.hpp>
+
+// Fixed-size 3x3 matrix — replaces ublas::matrix<int> in the rotation hot path
+using Mat3 = std::array<std::array<int, 3>, 3>;
+
+// Matrix-vector multiply: result = m * v (column-vector convention, matching ublas prod)
+inline std::array<int, 3> mat3_mul_vec(const Mat3 &m, const std::array<int, 3> &v) {
+    std::array<int, 3> r;
+    for (int i = 0; i < 3; ++i) {
+        r[i] = m[i][0] * v[0] + m[i][1] * v[1] + m[i][2] * v[2];
+    }
+    return r;
+}
 
 typedef boost::numeric::ublas::vector <int> vector_int;
 typedef vector_int * vector_int_ptr;

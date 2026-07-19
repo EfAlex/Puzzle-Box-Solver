@@ -16,13 +16,28 @@ limitations under the License.
 
 
 #include "box_solution.hpp"
+#include "box_solver.hpp"
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/foreach.hpp>
 #include <iostream>
+#include <mutex>
 
 using namespace boost::numeric::ublas;
 
 std::vector < box_solution > box_solution::solution_list;
+std::mutex box_solution::solutionMutex;
+
+size_t box_solution::solution_list_size()
+{
+    std::lock_guard<std::mutex> lock(solutionMutex);
+    return solution_list.size();
+}
+
+bool box_solution::empty()
+{
+    std::lock_guard<std::mutex> lock(solutionMutex);
+    return solution_list.empty();
+}
 
 box_solution::box_solution()
 {
@@ -62,49 +77,139 @@ void box_solution::to_vector(std::vector < figure > & s, std::vector < vector_in
     }
 }
 
-bool box_solution::isUnique(std::vector < figure > nf, const std::vector < vector_int >np)
+bool box_solution::isUnique(std::vector < figure > nf, const std::vector < vector_int > np)
 {
-    box b1;
-    box_solution bs1(nf, np);
-    for (unsigned int i = 0; i < nf.size(); ++i) {
-        b1.addFigure(nf[i], np[i]);
+    std::lock_guard<std::mutex> lock(solutionMutex);
+
+    // Need at least 2 figures for symmetry to matter
+    if (nf.size() < 2) {
+        return true;
     }
-    BOOST_FOREACH(box_solution & bs2, solution_list) {
-        box b2;
+
+    BOOST_FOREACH(const box_solution & bs2, solution_list) {
         std::vector < figure > s;
         std::vector < vector_int > sp;
         bs2.to_vector(s, sp);
-        for (unsigned int i = 0; i < bs2.solution.size(); ++i) {
-            b2.addFigure(s[i], sp[i]);
-        }
-        for (unsigned int i = 0; i < nf.size(); i++) {
-            box cb1(b1);
-            box cb2(b2);
-            cb1.delFigure(nf[i], np[i]);
-            cb2.delFigure(s[i], sp[i]);
-            if (cb1 == cb2) {
-                return false;
+
+        for (unsigned int i = 0; i < nf.size(); ++i) {
+            // Indices of remaining figures (excluding i)
+            int n_remaining = static_cast<int>(nf.size()) - 1;
+            std::vector<unsigned int> remIdx;
+            remIdx.reserve(n_remaining);
+            for (unsigned int j = 0; j < nf.size(); ++j) {
+                if (j != i) remIdx.push_back(j);
             }
-            cb2.rotateZ();
-            if (cb1 == cb2) {
-                return false;
-            }
-            cb2.rotateX();
-            if (cb1 == cb2) {
-                return false;
-            }
-            cb2.rotateZ();
-            if (cb1 == cb2) {
-                return false;
+
+            for (int sym = 0; sym < 4; ++sym) {
+                const BoxSymmetry &bs = boxSymmetries[sym];
+
+                // Match remaining positions from existing solution to new solution
+                int matched = 0;
+                bool posMatch = true;
+                std::vector<bool> npUsed(nf.size(), false);
+                std::vector<int> matchTo(n_remaining, -1); // existing j -> new k
+
+                for (int ri = 0; ri < n_remaining; ++ri) {
+                    unsigned int j = remIdx[ri];
+                    bool found = false;
+
+                    for (unsigned int k = 0; k < np.size(); ++k) {
+                        if (k == i || npUsed[k]) continue;
+
+                        int symPos[3];
+                        symPos[0] = bs.sign[0] * sp[j][0] + bs.offset[0];
+                        symPos[1] = bs.sign[1] * sp[j][1] + bs.offset[1];
+                        symPos[2] = bs.sign[2] * sp[j][2] + bs.offset[2];
+
+                        if (symPos[0] == np[k][0] &&
+                            symPos[1] == np[k][1] &&
+                            symPos[2] == np[k][2]) {
+                            npUsed[k] = true;
+                            matchTo[ri] = static_cast<int>(k);
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (!found) {
+                        posMatch = false;
+                        break;
+                    }
+                    matched++;
+                }
+
+                if (!posMatch || matched != n_remaining) {
+                    continue;
+                }
+
+                // Positions match under this symmetry — verify halfcube directions
+                bool dirMatch = true;
+
+                for (int ri = 0; ri < n_remaining; ++ri) {
+                    unsigned int j = remIdx[ri];
+                    int k = matchTo[ri];
+                    if (k < 0) continue;
+
+                    // Find first halfcube in existing figure j
+                    int halfcubeDir[3] = {0, 0, 0};
+                    bool foundHC = false;
+                    for (unsigned int c = 0; c < s[j].n_cubes && !foundHC; ++c) {
+                        if (s[j].cubes[c].c.isHalf()) {
+                            const int *dv = s[j].cubes[c].c.getVector();
+                            halfcubeDir[0] = dv[0];
+                            halfcubeDir[1] = dv[1];
+                            halfcubeDir[2] = dv[2];
+                            foundHC = true;
+                            break;
+                        }
+                    }
+
+                    if (!foundHC) {
+                        // Figure j has no halfcube — skip direction check
+                        continue;
+                    }
+
+                    // Find corresponding figure in new solution
+                    bool foundHC2 = false;
+                    for (unsigned int c = 0; c < nf[k].n_cubes && !foundHC2; ++c) {
+                        if (nf[k].cubes[c].c.isHalf()) {
+                            const int *dv = nf[k].cubes[c].c.getVector();
+                            // Transform direction under symmetry and compare
+                            int symDir[3];
+                            symDir[0] = bs.dsign[0] * halfcubeDir[0];
+                            symDir[1] = bs.dsign[1] * halfcubeDir[1];
+                            symDir[2] = bs.dsign[2] * halfcubeDir[2];
+
+                            if (dv[0] != symDir[0] ||
+                                dv[1] != symDir[1] ||
+                                dv[2] != symDir[2]) {
+                                dirMatch = false;
+                            }
+                            foundHC2 = true;
+                            break;
+                        }
+                    }
+
+                    if (!foundHC2) {
+                        // Existing figure has halfcube, new figure doesn't
+                        dirMatch = false;
+                    }
+                }
+
+                if (posMatch && dirMatch) {
+                    return false; // solutions equivalent under this symmetry
+                }
             }
         }
     }
-    return true;
+
+    return true; // unique
 }
 
 
-void box_solution::addSolution(std::vector < figure > nf, std::vector < vector_int >np)
+void box_solution::addSolution(std::vector < figure > nf, std::vector < vector_int > np)
 {
+    std::lock_guard<std::mutex> lock(solutionMutex);
     box_solution bs(nf, np);
     solution_list.push_back(bs);
 }

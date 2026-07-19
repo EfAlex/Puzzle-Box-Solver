@@ -22,6 +22,8 @@ limitations under the License.
 #include "figure.hpp"
 #include "box.hpp"
 #include <iostream>
+#include <atomic>
+#include <mutex>
 
 class box_solution {
   public:
@@ -30,9 +32,12 @@ class box_solution {
     box_solution(std::vector < figure >, const std::vector < vector_int >);
 
     static std::vector < box_solution > solution_list;
+    static std::mutex solutionMutex;
 
+    static size_t solution_list_size();
+    static bool empty();
     static bool isUnique(const std::vector < figure > , const std::vector < vector_int > );
-    static void addSolution(const std::vector < figure >, const std::vector < vector_int > );
+    static void addSolution(const std::vector < figure >, const std::vector < vector_int >);
     boost::ptr_vector < figure > solution;
     boost::ptr_vector < boost::ptr_vector < int > > solution_pos;
     void to_vector(std::vector < figure > & , std::vector < vector_int > & ) const;

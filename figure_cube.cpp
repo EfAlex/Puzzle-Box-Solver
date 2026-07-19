@@ -16,8 +16,6 @@
 
 
 #include "figure_cube.hpp"
-#include <iostream>
-#include <boost/numeric/ublas/io.hpp>
 
 figure_cube::figure_cube()
 {

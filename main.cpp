@@ -16,7 +16,6 @@ limitations under the License.
 
 //#include "box_solver.hpp"
 #include <QtWidgets/QApplication>
-#include <QtWidgets/QMessageBox>
 #include <QGuiApplication>         // for AA_EnableHighDpiScaling
 #include <QSurfaceFormat>
 #include "glwidget.hpp"

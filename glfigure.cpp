@@ -48,7 +48,7 @@ glfigure::glfigure(const figure & figur, const GLfloat solidc[4])
 
     f = figur;
 
-    for(unsigned int fci = 0; fci < f.cubes.size(); ++fci) {
+    for(unsigned int fci = 0; fci < f.n_cubes; ++fci) {
         figure_cube fc = f.cubes[fci];
         if (fc.c.isFull()) {
             glcube *glc = new glcube();

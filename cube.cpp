@@ -16,8 +16,6 @@
 
 
 #include "cube.hpp"
-#include <iostream>
-#include <boost/numeric/ublas/io.hpp>
 
 using namespace boost::numeric::ublas;
 

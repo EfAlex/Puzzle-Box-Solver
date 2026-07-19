@@ -17,8 +17,6 @@
 
 #include "glhalfcube.hpp"
 #include <boost/foreach.hpp>
-#include <boost/numeric/ublas/io.hpp>
-#include <iostream>
 #include "glwidget.hpp"
 #include "coregl.hpp"
 #include <QMatrix4x4>

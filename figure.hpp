@@ -19,14 +19,14 @@
 #define FIGURE_HPP
 
 #include "common.hpp"
-#include <boost/numeric/ublas/matrix.hpp>
 #include "cube.hpp"
 #include "figure_cube.hpp"
 #include <boost/ptr_container/ptr_vector.hpp>
 
 class figure {
 public:
-    boost::ptr_vector < figure_cube > cubes;
+    uint8_t n_cubes;
+    figure_cube cubes[4];
 
     figure();
     figure(const figure &);
@@ -35,7 +35,7 @@ public:
     vector_int direction[3];
     void reset();
     void addFigureCube(figure_cube);
-    void rotate(boost::numeric::ublas::matrix < int >);
+    void rotate(const Mat3 &m);
     figure *new_clone();
 };
 

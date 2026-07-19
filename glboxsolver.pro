@@ -4,17 +4,39 @@
 
 CONFIG += warn_on
 #CONFIG += precompile_header
-CONFIG += debug
-#CONFIG += release
+#CONFIG += debug
+CONFIG += release
 
 TEMPLATE = app
 TARGET = glboxsolver
 DEPENDPATH += .
 INCLUDEPATH += .
 
-QMAKE_CXXFLAGS_RELEASE=-O3 -DNDEBUG
-QMAKE_CFLAGS_RELEASE=-O3 -DNDEBUG
+QMAKE_CXXFLAGS_RELEASE=-O3 -march=native -funroll-loops -DNDEBUG
+QMAKE_CFLAGS_RELEASE=-O3 -march=native -funroll-loops -DNDEBUG
 
+# Profiling build: keep -O3 for real performance, add -g for source-level annotation
+CONFIG(perf) {
+    CONFIG -= debug
+    CONFIG += release
+    QMAKE_CXXFLAGS_RELEASE += -g
+    QMAKE_CFLAGS_RELEASE += -g
+}
+
+# Debug build: -O0 for gcov/gprof accuracy
+CONFIG(debug) {
+    QMAKE_CXXFLAGS += -O0 -g
+    QMAKE_CFLAGS += -O0 -g
+    DEFINES += DEBUG
+}
+
+# Coverage build: --coverage for gcov line execution counts
+CONFIG(coverage) {
+    QMAKE_CXXFLAGS += --coverage -O0 -g
+    QMAKE_CFLAGS += --coverage -O0 -g
+    QMAKE_LFLAGS += --coverage
+    DEFINES += DEBUG
+}
 
 HEADERS += box.hpp \
            box_solution.hpp \
@@ -46,4 +68,6 @@ SOURCES += box.cpp \
            main.cpp
 QT += widgets opengl
 PRECOMPILED_HEADER = common.hpp
-LIBS += -lGLU -lGL
+LIBS += -lGLU -lGL -lpthread
+
+QMAKE_CXXFLAGS += -std=c++14
