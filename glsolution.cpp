@@ -33,14 +33,14 @@ glsolution::glsolution() {
 glsolution::glsolution(unsigned int s, const std::vector < figure > & sol, const std::vector < vector_int > & sol_pos)
 {
     static const GLfloat figColors[][4] = {
-        { 0.5, 0.0, 0.0, 0.2 },
-        { 0.0, 0.5, 0.0, 0.2 },
-        { 0.0, 0.0, 0.5, 0.2 },
-        { 0.3, 0.3, 0.0, 0.2 },
-        { 0.0, 0.3, 0.3, 0.2 },
-        { 0.3, 0.0, 0.3, 0.2 },
-        { 0.2, 0.2, 0.2, 0.2 },
-        { 0.3, 0.4, 0.4, 0.2 }
+        { 0.7f, 0.1f, 0.1f, 0.2f },
+        { 0.1f, 0.3f, 0.1f, 0.2f },
+        { 0.2f, 0.2f, 1.0f, 0.2f },
+        { 0.3f, 0.3f, 0.1f, 0.2f },
+        { 0.1f, 0.3f, 0.3f, 0.2f },
+        { 0.5f, 0.1f, 0.5f, 0.2f },
+        { 0.25f, 0.25f, 0.25f, 0.2f },
+        { 0.5f, 0.2f, 0.1f, 0.2f }
     };
 
     objects.resize(0);

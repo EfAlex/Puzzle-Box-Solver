@@ -75,6 +75,7 @@ public:
         // Uniform applied in drawCubes()/drawHalfCubes() where program IS bound
     }
 
+    void setCullFace(bool enable);
     /* Instance data arrays for nested objects */
     float cube_positions[3 * MAX_INSTANCES];   // 3 floats per position (x, y, z)
     float cube_colors[4 * MAX_INSTANCES];      // 4 floats per color (r, g, b, a)

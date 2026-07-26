@@ -52,7 +52,7 @@ void glhalfcube::draw()
         QVector3D dir1(direction[1][0], direction[1][1], direction[1][2]);
 
         if (dir0.length() > 0.0f && dir1.length() > 0.0f) {
-            QVector3D dir2 = QVector3D::crossProduct(dir1, dir0);
+            QVector3D dir2 = QVector3D::crossProduct(dir0, dir1);
 
             if (dir2.length() > 0.0f) {
                 dir0.normalize();
