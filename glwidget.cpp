@@ -265,12 +265,20 @@ void GLWidget::draw()
     }
     m_dataReady.store(false, std::memory_order_release);
 
-    // Draw
+    // Disable depth writing for transparent geometry in neon mode.
+    // With additive blending, fragments with alpha=0.0 must not write depth,
+    // otherwise transparent faces block other transparent geometry behind them.
+    if (m_neonMode) {
+        glDepthMask(GL_FALSE);
+    }
     if (coregl_->cube_count > 0) {
         coregl_->drawCubes(coregl_->cube_count);
     }
     if (coregl_->halfcube_count > 0) {
         coregl_->drawHalfCubes(coregl_->halfcube_count);
+    }
+    if (m_neonMode) {
+        glDepthMask(GL_TRUE);
     }
 
     frame++;

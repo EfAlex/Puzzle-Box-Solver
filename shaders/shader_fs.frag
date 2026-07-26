@@ -55,17 +55,16 @@ void main() {
         // SAFEGUARD: ensure intensity never drops to zero
         float safeIntensity = max(u_neonIntensity, 0.01);
 
-        // Face color: tinted by intensity (Tetris3D: Color.rgb * safeIntensity)
-        // Edge color: white-hot with slight alpha boost on edge (Tetris3D: Color.a + 0.4)
+        // Face color: tinted by intensity
+        // Edge color: white-hot with alpha boost for neon glow
         vec3 faceColor = v_color.rgb * safeIntensity;
-        vec3 edgeColor = vec3(1.0) * safeIntensity;
+        vec3 edgeColor = v_color.rgb * safeIntensity;
 
         // Mix between face and edge based on proximity to edge
         vec3 finalColor = mix(faceColor, edgeColor, edgeFactor);
 
-        // Use original instance alpha for face, boost edge alpha slightly
-        // Tetris3D: face alpha = Color.a, edge alpha = Color.a + 0.4
-        float finalAlpha = mix(v_color.a, v_color.a + 0.15, edgeFactor);
+        // Keep face alpha (like Tetris), boost edge alpha for glow
+        float finalAlpha = mix(v_color.a, v_color.a + 0.4, edgeFactor);
 
         FragColor = vec4(finalColor, finalAlpha);
 
@@ -75,17 +74,24 @@ void main() {
         // ================================================================
 
         vec3 N = normalize(v_normal);
-        // Tetris3D uses fixed light direction vec3(0.5, 1.0, 0.5)
-        vec3 L = normalize(vec3(0.5, 1.0, 0.5));
 
-        float diff = max(dot(N, L), 0.0);
-        float ambient = 0.3;
+        // Volumetric-style lighting: multiple lights for even illumination
+        vec3 L1 = normalize(vec3(0.5, 1.0, 0.5));   // top-right-front
+        vec3 L2 = normalize(vec3(-0.5, 0.8, -0.5)); // top-left-back
+        vec3 L3 = normalize(vec3(0.0, -0.4, 0.0));  // bottom fill (lifts dark areas)
+        vec3 L4 = normalize(vec3(0.8, 0.2, -0.3));  // side fill
+
+        float diff = max(dot(N, L1), 0.0) * 0.4 +
+                     max(dot(N, L2), 0.0) * 0.3 +
+                     max(dot(N, L3), 0.0) * 0.15 +
+                     max(dot(N, L4), 0.0) * 0.15;
+        float ambient = 0.45;
 
         // Calculate the standard diffuse lighting
         vec3 baseLitColor = v_color.rgb * (ambient + diff);
 
         // Define how dark the edges should be (0.2 = 80% darker, 0.0 = pitch black)
-        vec3 darkEdgeColor = baseLitColor * 0.2; 
+        vec3 darkEdgeColor = vec3(0.5); 
 
         // Mix between the base lit color and the dark edge color based on UV proximity
         vec3 finalColor = mix(baseLitColor, darkEdgeColor, edgeFactor);
