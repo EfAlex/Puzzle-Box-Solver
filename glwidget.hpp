@@ -107,4 +107,3 @@ private:
 public:
     void setDebugMode(bool debug) { debugMode_ = debug; }
 };
-

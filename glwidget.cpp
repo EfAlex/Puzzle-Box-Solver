@@ -331,8 +331,23 @@ void GLWidget::mouseMoveEvent(QMouseEvent * e)
 
 void GLWidget::wheelEvent(QWheelEvent * e)
 {
-    e->angleDelta().y() > 0 ? sdepth += 0.1f : sdepth -= 0.1f;
-    update();
+    int delta = e->angleDelta().y();
+    if (delta == 0) return;
+
+    if (e->modifiers() & Qt::ControlModifier) {
+        // Ctrl+scroll: adjust neon intensity
+        m_neonIntensity += (delta > 0 ? 0.02f : -0.02f);
+        m_neonIntensity = qBound(0.0f, m_neonIntensity, 1.0f);
+        if (coregl_) {
+            coregl_->setNeonIntensity(m_neonIntensity);
+        }
+        update();
+    } else {
+        // Normal scroll: adjust depth
+        if (delta > 0) sdepth += 0.1f;
+        else if (delta < 0) sdepth -= 0.1f;
+        update();
+    }
 }
 
 
@@ -465,4 +480,3 @@ void GLWidget::setGLSolution(unsigned int count, const std::vector<figure> &sol,
     gl_solution = sol;
     gl_solution_pos = sol_pos;
 }
-
